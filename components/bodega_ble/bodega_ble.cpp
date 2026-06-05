@@ -45,17 +45,25 @@ bool starts_with_(const std::string &value, const char *prefix) {
   return value.rfind(prefix, 0) == 0;
 }
 
+bool contains_(const std::string &value, const char *needle) {
+  return value.find(needle) != std::string::npos;
+}
+
 bool is_bodega_name_(const std::string &name) {
   const auto upper_name = uppercase_copy(name);
   return starts_with_(upper_name, "MF-") || starts_with_(upper_name, "A1-") ||
          starts_with_(upper_name, "WT-0001") || starts_with_(upper_name, "AK1-") ||
          starts_with_(upper_name, "AK2-") || starts_with_(upper_name, "AK3-") ||
          starts_with_(upper_name, "KGS-") || starts_with_(upper_name, "KGD-") ||
-         starts_with_(upper_name, "W-") || starts_with_(upper_name, "WH-");
+         starts_with_(upper_name, "WH-") || starts_with_(upper_name, "W-") ||
+         contains_(upper_name, "BODEGA") || contains_(upper_name, "ALPICOOL") ||
+         contains_(upper_name, "CARFRIDGE") || contains_(upper_name, "CAR FRIDGE") ||
+         contains_(upper_name, "FRIDGE") || contains_(upper_name, "FREEZER");
 }
 
 #ifdef USE_ESP32_BLE_DEVICE
 std::vector<uint64_t> logged_discovery_addresses;
+std::vector<uint64_t> logged_advertisement_addresses;
 
 bool advertises_bodega_service_(const espbt::ESPBTDevice &device) {
   const auto bodega_uuid = esp32_ble::ESPBTUUID::from_uint16(BODEGA_SERVICE_UUID);
@@ -75,13 +83,68 @@ bool advertises_bodega_service_(const espbt::ESPBTDevice &device) {
   return false;
 }
 
-bool should_log_discovery_address_(uint64_t address) {
-  if (std::find(logged_discovery_addresses.begin(), logged_discovery_addresses.end(), address) !=
-      logged_discovery_addresses.end()) {
+bool remember_logged_address_(std::vector<uint64_t> &addresses, uint64_t address) {
+  if (std::find(addresses.begin(), addresses.end(), address) != addresses.end()) {
     return false;
   }
-  logged_discovery_addresses.push_back(address);
+  addresses.push_back(address);
   return true;
+}
+
+std::string uuid_to_string_(const esp32_ble::ESPBTUUID &uuid) {
+  char uuid_buf[esp32_ble::UUID_STR_LEN];
+  return uuid.to_str(uuid_buf);
+}
+
+template<typename T> std::string uuid_list_to_string_(const T &items) {
+  if (items.empty()) {
+    return "-";
+  }
+
+  std::string value;
+  for (const auto &item : items) {
+    if (!value.empty()) {
+      value += ",";
+    }
+    value += uuid_to_string_(item);
+  }
+  return value;
+}
+
+template<typename T> std::string service_data_uuid_list_to_string_(const T &items) {
+  if (items.empty()) {
+    return "-";
+  }
+
+  std::string value;
+  for (const auto &item : items) {
+    if (!value.empty()) {
+      value += ",";
+    }
+    value += uuid_to_string_(item.uuid);
+  }
+  return value;
+}
+
+void log_nearby_advertisement_(const espbt::ESPBTDevice &device) {
+  const auto address = device.address_uint64();
+  if (!remember_logged_address_(logged_advertisement_addresses, address)) {
+    return;
+  }
+
+  const auto service_uuids = uuid_list_to_string_(device.get_service_uuids());
+  const auto service_data_uuids = service_data_uuid_list_to_string_(device.get_service_datas());
+  const auto manufacturer_uuids = service_data_uuid_list_to_string_(device.get_manufacturer_datas());
+
+  if (device.get_name().empty()) {
+    ESP_LOGD(TAG, "Nearby BLE advertisement %s RSSI=%d services=%s service_data=%s manufacturer=%s",
+             device.address_str().c_str(), device.get_rssi(), service_uuids.c_str(), service_data_uuids.c_str(),
+             manufacturer_uuids.c_str());
+  } else {
+    ESP_LOGD(TAG, "Nearby BLE advertisement %s RSSI=%d name='%s' services=%s service_data=%s manufacturer=%s",
+             device.address_str().c_str(), device.get_rssi(), device.get_name().c_str(), service_uuids.c_str(),
+             service_data_uuids.c_str(), manufacturer_uuids.c_str());
+  }
 }
 #endif
 
@@ -157,6 +220,8 @@ void BodegaBLE::set_bind_on_connect(bool bind_on_connect) { this->bind_on_connec
 
 #ifdef USE_ESP32_BLE_DEVICE
 bool BodegaBLE::parse_device(const espbt::ESPBTDevice &device) {
+  log_nearby_advertisement_(device);
+
   const auto has_bodega_service = advertises_bodega_service_(device);
   const auto has_bodega_name = is_bodega_name_(device.get_name());
   if (!has_bodega_service && !has_bodega_name) {
@@ -164,7 +229,7 @@ bool BodegaBLE::parse_device(const espbt::ESPBTDevice &device) {
   }
 
   const auto address = device.address_uint64();
-  if (!should_log_discovery_address_(address)) {
+  if (!remember_logged_address_(logged_discovery_addresses, address)) {
     return false;
   }
 

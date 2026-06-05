@@ -21,7 +21,7 @@ The implementation was built from the APK's JavaScript/Hermes bundle. The protoc
 - Fridge panel unit selector for Celsius/Fahrenheit.
 - Refresh and optional bind buttons.
 - Fixed ESPHome `report_unit` for Home Assistant entities, with internal conversion when the fridge panel unit changes.
-- BLE MAC discovery logging for likely Bodega/Alpicool advertisements.
+- BLE MAC discovery logging for likely Bodega/Alpicool advertisements plus debug logs for nearby BLE advertisements.
 - ESPHome sub-device support through standard `device_id` on every entity.
 - Fragmented notification handling and checksum validation.
 
@@ -141,7 +141,15 @@ The component listens to BLE advertisements and logs likely matches once per boo
 Discovered possible Bodega/Alpicool BLE fridge AA:BB:CC:DD:EE:FF RSSI=-62 ...
 ```
 
-Candidates are matched by advertised service UUID `0x1234` or by app-derived advertised-name prefixes such as `MF-`, `A1-`, `WT-0001`, `AK1-`, `AK2-`, `AK3-`, `KGS-`, `KGD-`, `W-`, and `WH-`.
+Candidates are matched by advertised service UUID `0x1234`, app-derived advertised-name prefixes such as `MF-`, `A1-`, `WT-0001`, `AK1-`, `AK2-`, `AK3-`, `KGS-`, `KGD-`, `W-`, and `WH-`, or obvious brand/product words such as `Bodega`, `Alpicool`, `Fridge`, and `Freezer`.
+
+If no likely match is logged, keep the default `logger:` level or set `level: DEBUG` and look for nearby advertisement lines:
+
+```text
+Nearby BLE advertisement AA:BB:CC:DD:EE:FF RSSI=-62 name='...' services=... service_data=... manufacturer=...
+```
+
+Those debug lines are logged once per MAC address per boot and include the advertised name, service UUIDs, service-data UUIDs, and manufacturer-data IDs. They are useful for fridges that do not advertise with the expected service UUID or app-derived name prefix.
 
 Replace the placeholder `ble_client.mac_address` with the logged MAC address after you identify the fridge.
 
