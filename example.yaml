@@ -1,0 +1,103 @@
+esphome:
+  name: bodega-fridge-bridge
+  friendly_name: Bodega Fridge Bridge
+  devices:
+    - id: bodega_fridge_device
+      name: Bodega Fridge
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF
+    id: fridge_ble
+    auto_connect: true
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [bodega_ble]
+
+bodega_ble:
+  id: fridge_hub
+  ble_client_id: fridge_ble
+  report_unit: celsius
+  bind_on_connect: false
+  update_interval: 30s
+
+sensor:
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: left_current
+    name: Left Current Temperature
+    device_id: bodega_fridge_device
+
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: battery_percentage
+    name: Fridge Battery Percentage
+    device_id: bodega_fridge_device
+
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: battery_voltage
+    name: Fridge Battery Voltage
+    device_id: bodega_fridge_device
+
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: run_mode
+    name: Fridge Run Mode
+    device_id: bodega_fridge_device
+
+number:
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: left_target
+    name: Left Target Temperature
+    device_id: bodega_fridge_device
+
+switch:
+  - platform: ble_client
+    ble_client_id: fridge_ble
+    name: Fridge BLE Connection
+    device_id: bodega_fridge_device
+
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: power
+    name: Fridge Power
+    device_id: bodega_fridge_device
+
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: lock
+    name: Fridge Lock
+    device_id: bodega_fridge_device
+
+select:
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: unit
+    name: Fridge Display Unit
+    device_id: bodega_fridge_device
+
+button:
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: refresh
+    name: Refresh Fridge State
+    device_id: bodega_fridge_device
+
+  - platform: bodega_ble
+    bodega_ble_id: fridge_hub
+    type: bind
+    name: Bind Fridge
+    device_id: bodega_fridge_device
